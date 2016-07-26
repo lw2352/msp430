@@ -70,6 +70,6 @@ void MX29LV320t_Flash_Write(unsigned long vaddress, unsigned char vdata);
 unsigned char MX29LV320t_Flash_Read(unsigned long vaddress);
 void MX29LV320t_Command_Write(unsigned long vaddress, unsigned char vdata);
 void write_SegB();
-
+void OutTimer();
 
 #endif /* #ifndef __wizewizepipes */

@@ -27,11 +27,13 @@ TDATA td1;
 unsigned long flash_addr;
 unsigned int capdata;
 unsigned short counter_tx;
-unsigned int Time1=0,Time2,Timing;
+unsigned long Time1=0,Time2,Timing;
 unsigned long sum;
 
+
+char timeout=0;
 char capOK;
-char step=0;
+char step;
 char ADdata[MAX_BUFFER];
 char temp[MAX_BUFFER];
 void main( void )
@@ -53,9 +55,9 @@ void main( void )
   IsHaveCommand =0;
   raddr=0; 
   strcpy(ATMSG,"AT+RST\r\n");
-  senddata(ATMSG,strlen(ATMSG));   
-  while(IsHaveCommand!=C_READY) _NOP();//等待响应指令
-  
+  senddata(ATMSG,strlen(ATMSG));
+  OutTimer();
+  while(IsHaveCommand!=C_READY && timeout!=1) _NOP();//等待响应指令
   delaymsec();//等待信息输出完成 
     
   
@@ -85,12 +87,12 @@ void main( void )
     dotask();
   else if(IsCaptureTime)
     docapture();
-  else if(IsErase_ChipTime)
+  /*else if(IsErase_ChipTime)
   {
     MX29LV320t_Cmd_Reset();          //flash的芯片复位
     MX29LV320t_Cmd_Erase_Chip();     //将flash进行芯片擦除
     IsErase_ChipTime=0;
-  }
+  }*/
  // else if( isgpscmdok==2)
     //ReadGPSInfo();
   
@@ -105,45 +107,85 @@ void main( void )
 __interrupt void Timer_A (void)
 {
   
-  switch(step)
-  {
-    case 0:
     //暂停定时器
     //关闭时间定时器Timer A0
     CCTL0 &= ~CCIE;                  // CCR0 interrupt disabled
     //关闭计数
     TACTL = MC_0; 
       
-    _EINT();//开启中断  
-  
-    IsHaveCommand=0;
-    raddr=0;
-    strcpy(ATMSG,"AT+CIPSTATUS\r\n");//查询IP状态
-    senddata(ATMSG,strlen(ATMSG));
-    while(!IsHaveCommand) _NOP();//等待响应指令 
-    //delaymsec();
-  
-    if(rbuffer[7]!='3')//2 get ip 3 builded 4 lost ip
+    _EINT();//开启中断
+    Time1=(td1.hour*60+td1.minute);
+    Time1=Time1*60+td1.seconds;
+    Timing=ReadGPSInfo();
+    if(Time1>Timing)
     {
-     Connectwifi();
-    } //网络断重连 
- 
-    //发送心跳包
-    if(netstatus && IsReceiveCommand==0)sendheartbeat();
+       //Timing=ReadGPSInfo();
+       Time1-=Timing;
+       if(Time1<600)
+       {
+         IsCaptureTime=1;
+         Time1*=10;
+         Time1*=10;
+         Time1*=10;
+         step=0;
+      
+         TBCCTL0 = CCIE;                               // CCR0 interrupt enabled
+         TBCCR0 = 999;
+         TBCTL = TBSSEL_2 + MC_1 + ID_3;
+       }
+       else
+      {
+        IsHaveCommand=0;
+        raddr=0;
+        strcpy(ATMSG,"AT+CIPSTATUS\r\n");//查询IP状态
+        senddata(ATMSG,strlen(ATMSG));
+        while(!IsHaveCommand) _NOP();//等待响应指令 
+       //delaymsec();
   
-    //重启定时器
-    CCTL0 = CCIE;                             // CCR0 interrupt enabled
-    CCR0 = 0x2FFF;
-    TACTL = TASSEL_1 + MC_1 + ID_3;                  // ACLK/8=4096Hz, upmode
+        if(rbuffer[7]!='3')//2 get ip 3 builded 4 lost ip
+        {
+         Connectwifi();
+        } //网络断重连 
+ 
+        //发送心跳包
+        if(netstatus && IsReceiveCommand==0)sendheartbeat();
+        CCTL0 = CCIE;                             // CCR0 interrupt enabled
+        CCR0 = 0x1DFF;
+        TACTL = TASSEL_1 + MC_1 + ID_3;                  // ACLK/8=512Hz, upmode
+      }
+    }
+    if(Time1<=Timing)
+    {
+      IsHaveCommand=0;
+      raddr=0;
+      strcpy(ATMSG,"AT+CIPSTATUS\r\n");//查询IP状态
+      senddata(ATMSG,strlen(ATMSG));
+      while(!IsHaveCommand) _NOP();//等待响应指令 
+     //delaymsec();
+  
+      if(rbuffer[7]!='3')//2 get ip 3 builded 4 lost ip
+      {
+       Connectwifi();
+      } //网络断重连 
+ 
+      //发送心跳包
+      if(netstatus && IsReceiveCommand==0)sendheartbeat();
+      CCTL0 = CCIE;                             // CCR0 interrupt enabled
+      CCR0 = 0x1DFF;
+      TACTL = TASSEL_1 + MC_1 + ID_3;                  // ACLK/8=512Hz, upmode
+    }
+  
+
     
     //SR |= 0x00F0;
     //SR &= 0xFFDF;
     
-    // step=1;
-   break;
+    //step=1;
   
-    case 1:
+   /* case 1:
      Time1++;
+     if(netstatus==0)
+       step=0;
      if(Time1==Timing)
      {
        //SR &= 0xFF0F;
@@ -158,14 +200,14 @@ __interrupt void Timer_A (void)
     CCTL0 &= ~CCIE;                  // CCR0 interrupt disabled
     //关闭计数
     TACTL = MC_0; 
-    Time2=td1.hour*3600+td1.minute*60+td1.seconds-ReadGPSInfo();
-    
+    //Time2=td1.hour*3600+td1.minute*60+td1.seconds-ReadGPSInfo();
+    Time2=300;
     step=3;
 
     //重启定时器
     CCTL0 = CCIE;                             // CCR0 interrupt enabled
-    CCR0 = 0xFFFF;
-    TACTL = TASSEL_1 + MC_1 + ID_3;                  // ACLK/8=4096Hz, upmode
+    CCR0 = 0x01FF;
+    TACTL = TASSEL_1 + MC_1 + ID_3;                  // ACLK/8=4096/8=512Hz, upmode
     break;
     
      case 3:
@@ -179,10 +221,10 @@ __interrupt void Timer_A (void)
       
   case 4:
     Time2-=15;
-    if(Time2<90)
+    if(Time2<280)
     {
       Time2*=1000;
-      Time2-=(gpsrbuf[13]-0x30)*10+gpsrbuf[14]-0x30;
+      
       step=5;
     }
     break;
@@ -203,7 +245,7 @@ __interrupt void Timer_A (void)
     break;
     
    case 6:
-     Time2--;
+     Time1--;
      if(Time2==0)
      {
      //暂停定时器
@@ -213,18 +255,39 @@ __interrupt void Timer_A (void)
     TACTL = MC_0;
     IsCaptureTime=1;
      }
-    break;
-  }     
+    break;*/  
 }
 
 
 #pragma vector=TIMERB0_VECTOR
 __interrupt void Timer_B (void)
 {
-   ADC12IE = 0x01;                           // Enable interrupt
-   ADC12CTL0 |= ENC;                         // Conversion enabled
-   ADC12CTL0 |= ADC12SC;
-   sum+=1;  
+   switch(step)
+   {
+   case 0:
+   Time1--;
+   if(Time1==0)
+   {
+     TBCCTL0 &= ~CCIE;                  // CCR0 interrupt disabled
+     //关闭计数
+     TBCCR0 = MC_0;
+   }
+   break;
+   
+   case 1:
+     ADC12IE = 0x01;                           // Enable interrupt
+     ADC12CTL0 |= ENC;                         // Conversion enabled
+     ADC12CTL0 |= ADC12SC;
+     sum+=1;
+    break;
+    
+   case 2:
+     timeout=1;
+     TBCCTL0 &= ~CCIE;                  // CCR0 interrupt disabled
+     //关闭计数
+     TBCTL = MC_0; 
+     break;
+   }
 }
 
 #pragma vector=ADC12_VECTOR
@@ -234,8 +297,6 @@ __interrupt void ADC12ISR (void)
    ADdata[0]=capdata&0xFF;
    capdata>>=8;
    ADdata[1]=capdata&0x0F;
-   
-  
    
    MX29LV320t_Flash_Write(flash_addr,ADdata[1]);
    flash_addr++; 
@@ -257,21 +318,20 @@ __interrupt void ADC12ISR (void)
      _NOP();
      ATMSG[0]=0xA5;     
      ATMSG[1]=0xA5;     
-     ATMSG[2]=0xFC;     
+     ATMSG[2]=0x22;     
      ATMSG[3]=cd1.ID[0];     
      ATMSG[4]=cd1.ID[1]; 
      ATMSG[5]=cd1.ID[2];     
      ATMSG[6]=cd1.ID[3];     
      ATMSG[7]=0x00;     
      ATMSG[8]=0x01;     
-     ATMSG[9]=0xFF;     
+     ATMSG[9]=0x55;     
      ATMSG[10]=0xFF;     
      ATMSG[11]=0x5A;     
      ATMSG[12]=0x5A;     
      senddata(ATMSG,13);    
      while(IsHaveCommand!=C_OK) _NOP();//等待响应指令    
      StartTimer();
-     step=0;
    }   
 }
 
@@ -337,6 +397,7 @@ __interrupt void USCI1RX_ISR(void)
         {
           gpsstep=1;
           isgpscmdok=0;
+          gpsaddr=0;
           gpsrbuf[gpsaddr++]=UCA1RXBUF;
         }
         else
@@ -386,7 +447,10 @@ __interrupt void USCI1RX_ISR(void)
           {gpsstep=0;gpsaddr=0;}
         break;
     case 6:if(UCA1RXBUF=='\n')
-             isgpscmdok=2;  
+           {  
+             gpsstep=0;
+             isgpscmdok=2; 
+           } 
           gpsrbuf[gpsaddr++]=UCA1RXBUF;
         break;   
   default:

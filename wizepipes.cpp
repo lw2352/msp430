@@ -12,8 +12,11 @@ extern char gpstbuf[MAX_BUFFER];
 extern char isgpscmdok;
 extern char gpsaddr;
 extern char capOK;
+extern char step;
+
+extern char timeout;
 extern char  IsCaptureTime;
-extern unsigned int Timing;
+extern unsigned long  Time1,Timing;
 extern unsigned long flash_addr;
 extern unsigned long sum;
 extern unsigned short counter_tx; 
@@ -129,6 +132,17 @@ void ReadConfig()
   addr++;
   cd1.minute=*(short *)addr++;
   for(i=0;i<5;i++)cd1.ID[i]=*addr++;
+  
+   addr = (char *)0x1080;               // Initialize Flash pointer
+  
+  td1.hour = *addr++;                  //将采样时间写入结构体中
+  td1.minute = *addr++;
+  td1.seconds = *addr++;
+  td1.ms = *addr++;
+  
+  //Timing=*addr++;                      //配置采样时间间隔
+  //Timing=(Timing<<8)+*addr++;
+  
 }
 
 
@@ -143,34 +157,47 @@ void write_SegB()
   *Flash_ptr = 0;                           // Dummy write to erase Flash seg
 
   FCTL1 = FWKEY + WRT;                      // Set WRT bit for write operation
-
-  for (i = 9; i<13; i++)
-  {
-    *Flash_ptr++ = temp[i];                   // Write value to flash
-  }
   
-  FCTL1 = FWKEY;                            // Clear WRT bit
-  FCTL3 = FWKEY + LOCK;                     // Set LOCK bit
+    for (i = 9; i<13; i++)
+    {
+      *Flash_ptr++ = temp[i];                   // Write value to flash
+    }
   
-  Flash_ptr = (char *)0x1080;               // Initialize Flash pointer
+    FCTL1 = FWKEY;                            // Clear WRT bit
+    FCTL3 = FWKEY + LOCK;                     // Set LOCK bit
   
-  td1.hour = *Flash_ptr++;                  //将采样时间写入结构体中
-  td1.minute = *Flash_ptr++;
-  td1.seconds = *Flash_ptr++;
-  td1.ms = *Flash_ptr++;
+    Flash_ptr = (char *)0x1080;               // Initialize Flash pointer
+  
+    td1.hour = *Flash_ptr++;                  //将采样时间写入结构体中
+    td1.minute = *Flash_ptr++;
+    td1.seconds = *Flash_ptr++;
+    td1.ms = *Flash_ptr++;
 }
+  /*if(temp[2]==0x26)
+  {
+    Flash_ptr = (char *)0x1084;
+    for (i = 9; i<11; i++)
+    {
+      *Flash_ptr++ = temp[i];                   // Write value to flash
+    }
+    Flash_ptr = (char *)0x1084;
+    Timing=*Flash_ptr++;
+    Timing=(Timing<<8)+*Flash_ptr++;
+  }*/
+
 
 unsigned long ReadGPSInfo()
 {      
       char i;
-      unsigned long tmp1=0;
+      unsigned long tmp1;
 
       UC1IE |= UCA1RXIE;
+      isgpscmdok=0;
       while(isgpscmdok!=2)_NOP();
       UC1IE &= ~UCA1RXIE;
       
       //提取时间  
-      for(i=7;i<17;i++)gpsrbuf[i] -=0x30;
+      for(i=7;i<17;i++)gpsrbuf[i]-=0x30;
       //计算小时
       tmp1=0;
       tmp1 = gpsrbuf[7]*10 + gpsrbuf[8] + 8;     
@@ -187,26 +214,39 @@ unsigned long ReadGPSInfo()
 
 void ReturnGPSInfo()
 {
-  char i;
+  char i,j;
   
   UC1IE |= UCA1RXIE;
+  isgpscmdok=0;
   while(isgpscmdok!=2)_NOP();
   UC1IE &= ~UCA1RXIE;
   
   IsHaveCommand=0;
   raddr=0; 
-  strcpy(ATMSG,"AT+CIPSEND=6\r\n");//发送连接指示
+  strcpy(ATMSG,"AT+CIPSEND=15\r\n");//发送连接指示
   senddata(ATMSG,strlen(ATMSG));
   while(IsHaveCommand!=D_INPUT) _NOP();//等待响应指令 
   _NOP();
-  for(i=7;i<13;i++)
+  
+  for(i=7,j=9;i<13;i+=2,j++)
   {
-  ATMSG[i-7]=gpsrbuf[i];
+  ATMSG[j]=(gpsrbuf[i]-0x30)*10 + gpsrbuf[i+1]-0x30;
   }
-  i=(ATMSG[0]-0x30)*10+ATMSG[1]-0x30+8;
-  ATMSG[0]=i/10+0x30;
-  ATMSG[1]=i%10+0x30;
-  senddata(ATMSG,6);    
+  
+   ATMSG[0]=0xA5;
+   ATMSG[1]=0xA5;    
+   ATMSG[2]=0x24;
+   ATMSG[3]=cd1.ID[0];
+   ATMSG[4]=cd1.ID[1];
+   ATMSG[5]=cd1.ID[2];
+   ATMSG[6]=cd1.ID[3];
+   ATMSG[7]=0x00;
+   ATMSG[8]=0x03;
+   ATMSG[9]+=8;
+   ATMSG[12]=0xFF;
+   ATMSG[13]=0x5A; 
+   ATMSG[14]=0x5A;
+   senddata(ATMSG,15);
   while(IsHaveCommand!=C_OK) _NOP();//等待响应指令     
 }
 
@@ -226,8 +266,9 @@ char Connectwifi()
   IsHaveCommand =0;
   raddr=0; 
   strcpy(ATMSG,"ATE0\r\n");//啰嗦开关ATE0关闭ATE1开启
-  senddata(ATMSG,strlen(ATMSG));   
-  while(IsHaveCommand!=C_OK) _NOP();//等待响应指令 
+  senddata(ATMSG,strlen(ATMSG));
+  OutTimer();
+  while(IsHaveCommand!=C_OK&&timeout!=1) _NOP();//等待响应指令 
   
   IsHaveCommand =0;
   raddr=0; 
@@ -317,7 +358,7 @@ char Connectwifi()
       raddr=0;
       //strcpy(ATMSG,"AT+CIPSTART=\"TCP\",\"120.25.229.254\",8080\r\n");//建立IP链接 
       // strcpy(ATMSG,"AT+CIPSTART=\"TCP\",\"192.168.1.127\",8080\r\n");//建立IP链接 
-      strcpy(ATMSG,"AT+CIPSTART=\"TCP\",\"192.168.1.100\",8080\r\n");//建立IP链接 
+      strcpy(ATMSG,"AT+CIPSTART=\"TCP\",\"192.168.1.103\",8080\r\n");//建立IP链接 
      // strcpy(ATMSG,"AT+CIPSTART=\"TCP\",\"192.168.2.101\",8080\r\n");//建立IP链接 
       senddata(ATMSG,strlen(ATMSG));
       while(!IsHaveCommand) _NOP();//等待响应指令 
@@ -346,6 +387,15 @@ void StopTimer()
   //关闭计数
   TACTL = MC_0; 
 }
+void OutTimer()
+{
+  step=2;
+  timeout = 0;
+  TBCCTL0 = CCIE;                             // CCR0 interrupt enabled
+  TBCCR0 = 0x1DFF;
+  TBCTL = TBSSEL_1 + MC_1 + ID_3;                  // ACLK/8=512Hz, upmode
+}
+
 
 void sendheartbeat()
 {
@@ -369,8 +419,9 @@ void sendheartbeat()
     ATMSG[9]=0xFF;  
     ATMSG[10]=0x5A;
     ATMSG[11]=0x5A;        
-    senddata(ATMSG,12);    
-    while(IsHaveCommand!=C_OK) _NOP();//等待响应指令     
+    senddata(ATMSG,12);
+    OutTimer();
+    while(IsHaveCommand!=C_OK&&timeout!=1) _NOP();//等待响应指令     
 }
 
 void dotask()
@@ -390,18 +441,15 @@ void dotask()
       break;
       
    case 0x22:
-      ADC12CTL0 = SHT0_2 + ADC12ON;             // Set sampling time, turn on ADC12
-      ADC12CTL0 |= REF2_5V;
-      ADC12CTL1 = SHP;                          // Use sampling timer
-      ADC12MCTL0 = SREF_2+INCH_1;
+      Time1=0;
       IsCaptureTime=1;      
       break;
       
       case 0x23:
-       flash_addr=(temp[9]<<12) +(temp[10]<<8) + temp[11];
+       flash_addr=temp[11]*( (temp[12]<<8) + temp[13] );
        if( flash_addr%2==0)
        {
-         if(((temp[12]<<8)+temp[13])>2048 );
+         if(((temp[12]<<8)+temp[13])>2048);
          else
          {
          k=(temp[12]<<8)+temp[13];
@@ -483,12 +531,44 @@ void dotask()
       while(IsHaveCommand!=C_OK) _NOP();//等待响应指令    
      }
      else
-     write_SegB();
-     StartTimer();
+     {
+      if(0<temp[9]&&temp[9]<24&&0<temp[10]&&temp[10]<60)
+      {
+        write_SegB();
+      }
+          else
+          {
+             IsHaveCommand=0;
+             raddr=0; 
+             strcpy(ATMSG,"AT+CIPSEND=16\r\n");//发送连接指示
+             senddata(ATMSG,strlen(ATMSG));
+             while(IsHaveCommand!=D_INPUT) _NOP();//等待响应指令 
+             _NOP();
+             
+             ATMSG[0]=0xA5;
+             ATMSG[1]=0xA5;    
+             ATMSG[2]=0x25;    
+             ATMSG[3]=cd1.ID[0];     
+             ATMSG[4]=cd1.ID[1]; 
+             ATMSG[5]=cd1.ID[2];     
+             ATMSG[6]=cd1.ID[3];     
+             ATMSG[7]=0x00;     
+             ATMSG[8]=0x04;     
+             ATMSG[9]=0xFF;     
+             ATMSG[10]=0xFF;     
+             ATMSG[11]=0xFF;     
+             ATMSG[12]=0xFF;
+             ATMSG[13]=0xFF;
+             ATMSG[14]=0xA5;
+             ATMSG[15]=0xA5;
+             senddata(ATMSG,16);    
+             while(IsHaveCommand!=C_OK) _NOP();//等待响应指令   
+          }
+     }
+      StartTimer();
      break;
      
    case 0x26:
-     Timing = (temp[9]<<8)+temp[10];
      StartTimer();
        break;
       
@@ -522,6 +602,9 @@ void dotask()
 
 void docapture()
 {  
+   char i;
+   IsCaptureTime=0;
+   
    IsHaveCommand=0;
    raddr=0; 
    strcpy(ATMSG,"AT+CIPSEND=13\r\n");//发送连接指示
@@ -530,35 +613,52 @@ void docapture()
    _NOP();
    ATMSG[0]=0xA5;     
    ATMSG[1]=0xA5;     
-   ATMSG[2]=0xFD;     
+   ATMSG[2]=0x22;     
    ATMSG[3]=cd1.ID[0];     
    ATMSG[4]=cd1.ID[1]; 
    ATMSG[5]=cd1.ID[2];     
    ATMSG[6]=cd1.ID[3];     
    ATMSG[7]=0x00;     
    ATMSG[8]=0x01;     
-   ATMSG[9]=0xFF;     
+   ATMSG[9]=0xAA;     
    ATMSG[10]=0xFF;     
    ATMSG[11]=0x5A;     
    ATMSG[12]=0x5A;
    senddata(ATMSG,13);    
-   while(IsHaveCommand!=C_OK) _NOP();//等待响应指令     
+   while(IsHaveCommand!=C_OK)_NOP();//等待响应指令     
   
    IE2 &= ~UCA0RXIE;
    UC1IE &= ~UCA1RXIE;                       //关闭所有接受
    
-   if(MX29LV320t_Flash_Read(1)==0xFF && MX29LV320t_Flash_Read(1000)==0xFF && MX29LV320t_Flash_Read(2000)==0xFF) _NOP();
+   for(i=0;i<8;i++)
+     ADdata[i]=MX29LV320t_Flash_Read(i);
+   if(ADdata[0]==0xFF&&ADdata[1]==0xFF&&ADdata[2]==0xFF&&ADdata[3]==0xFF&&ADdata[4]==0xFF&&ADdata[5]==0xFF&&ADdata[6]==0xFF&&ADdata[7]==0xFF)_NOP();
    else
    {
    MX29LV320t_Cmd_Reset();          //flash的芯片复位
    MX29LV320t_Cmd_Erase_Chip();     //将flash进行芯片擦除
    }
    
+   
+   while(Time1!=0) _NOP();
+   
+    //暂停定时器
+    //关闭时间定时器Timer A0
+   TBCCTL0 &= ~CCIE;                  // CCR0 interrupt disabled
+    //关闭计数
+   TBCCR0 = MC_0;
+   
+   ADC12CTL0 = SHT0_2 + ADC12ON;             // Set sampling time, turn on ADC12
+   ADC12CTL0 |= REF2_5V;
+   ADC12CTL1 = SHP;                          // Use sampling timer
+   ADC12MCTL0 = SREF_2+INCH_1;
+   
    TBCCTL0 = CCIE;                               // CCR0 interrupt enabled
    TBCCR0 = 199;
    TBCTL = TBSSEL_2 + MC_1 + ID_3;
    
-   IsCaptureTime=0;
+   step=1;
+   
    sum = 0;
    flash_addr=0;   
 }  
