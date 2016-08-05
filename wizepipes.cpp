@@ -29,6 +29,13 @@ void delaymsec()
  for(i=0x4FFFFF;i>0;i--)_NOP();
 }
 
+void dm1()
+{
+ unsigned long j;
+ for(j=0x1FFFF;j>0;j--)_NOP();
+}
+
+
 void InitialSystem()
 {
  // unsigned long i;
@@ -109,8 +116,187 @@ void InitialSystem()
   UCA1CTL1 &= ~UCSWRST;                     // **Initialize USCI state machine**   
   UC1IE &= ~UCA1RXIE;
   
+  
+ Gps_MSG();
+  
   //reset external flash
   MX29LV320t_Cmd_Reset();
+ 
+}
+
+void Gps_MSG()
+{
+  UC1IE |= UCA1TXIE;
+  
+  //设置发送数据准备
+  gpstbuf[0]=0xB5;
+  gpstbuf[1]=0x62;
+  gpstbuf[2]=0x06;
+  gpstbuf[3]=0x00;
+  gpstbuf[4]=0x14;
+  gpstbuf[5]=0x00;
+  gpstbuf[6]=0x01;
+  gpstbuf[7]=0x00;
+  gpstbuf[8]=0x00;
+  gpstbuf[9]=0x00;
+  gpstbuf[10]=0xD0;
+  gpstbuf[11]=0x08;
+  gpstbuf[12]=0x00;
+  gpstbuf[13]=0x00;
+  gpstbuf[14]=0x00;
+  gpstbuf[15]=0x96;
+  gpstbuf[16]=0x00;
+  gpstbuf[17]=0x00;
+  gpstbuf[18]=0x07;
+  gpstbuf[19]=0x00;
+  gpstbuf[20]=0x03;
+  gpstbuf[21]=0x00;
+  gpstbuf[22]=0x00;
+  gpstbuf[23]=0x00;
+  gpstbuf[24]=0x00;
+  gpstbuf[25]=0x00;
+  gpstbuf[26]=0x93;
+  gpstbuf[27]=0x90;
+ // Gps_senddata(gpstbuf,28);
+  dm1();
+
+  gpstbuf[0]=0xB5;
+  gpstbuf[1]=0x62;
+  gpstbuf[2]=0x06;
+  gpstbuf[3]=0x01;
+  gpstbuf[4]=0x08;
+  gpstbuf[5]=0x00;
+  gpstbuf[6]=0xF0;
+  gpstbuf[7]=0x04;
+  gpstbuf[8]=0x00;
+  gpstbuf[9]=0x00;
+  gpstbuf[10]=0x00;
+  gpstbuf[11]=0x00;
+  gpstbuf[12]=0x00;
+  gpstbuf[13]=0x01;
+  gpstbuf[14]=0x04;
+  gpstbuf[15]=0x40;
+  Gps_senddata(gpstbuf,16);
+ dm1();
+
+  gpstbuf[7]=0x02;
+  gpstbuf[14]=0x02;
+  gpstbuf[15]=0x32;
+  Gps_senddata(gpstbuf,16);
+ dm1();
+
+  gpstbuf[7]=0x03;
+  gpstbuf[14]=0x03;
+  gpstbuf[15]=0x39;
+  Gps_senddata(gpstbuf,16);
+ dm1();
+
+  gpstbuf[7]=0x01;
+  gpstbuf[14]=0x01;
+  gpstbuf[15]=0x2B;
+  Gps_senddata(gpstbuf,16);
+ dm1();
+
+  gpstbuf[7]=0x05;
+  gpstbuf[14]=0x05;
+  gpstbuf[15]=0x47;
+  Gps_senddata(gpstbuf,16);
+ dm1();
+
+  gpstbuf[7]=0x00;
+  gpstbuf[9]=0x01;
+  gpstbuf[14]=0x01;
+  gpstbuf[15]=0x29;
+  Gps_senddata(gpstbuf,16);
+ dm1();
+ 
+  gpstbuf[0]=0xB5;
+  gpstbuf[1]=0x62;
+  gpstbuf[2]=0x06;
+  gpstbuf[3]=0x07;
+  gpstbuf[4]=0x14;
+  gpstbuf[5]=0x00;
+  gpstbuf[6]=0x40;
+  gpstbuf[7]=0x42;
+  gpstbuf[8]=0x0F;
+  gpstbuf[9]=0x00;
+  gpstbuf[10]=0xA0;
+  gpstbuf[11]=0x86;
+  gpstbuf[12]=0x01;
+  gpstbuf[13]=0x00;
+  gpstbuf[14]=0x01;
+  gpstbuf[15]=0x00;
+  gpstbuf[16]=0x00;
+  gpstbuf[17]=0x00;
+  gpstbuf[18]=0x34;
+  gpstbuf[19]=0x03;
+  gpstbuf[20]=0x00;
+  gpstbuf[21]=0x00;
+  gpstbuf[22]=0x00;
+  gpstbuf[23]=0x00;
+  gpstbuf[24]=0x00;
+  gpstbuf[25]=0x00;
+  gpstbuf[26]=0x11;
+  gpstbuf[27]=0x86;
+  Gps_senddata(gpstbuf,28);
+  dm1();
+  
+  gpstbuf[0]=0xB5;
+  gpstbuf[1]=0x62;
+  gpstbuf[2]=0x06;
+  gpstbuf[3]=0x31;
+  gpstbuf[4]=0x20;
+  gpstbuf[5]=0x00;
+  gpstbuf[6]=0x00;
+  gpstbuf[7]=0x01;
+  gpstbuf[8]=0x00;
+  gpstbuf[9]=0x00;
+  gpstbuf[10]=0x00;
+  gpstbuf[11]=0x00;
+  gpstbuf[12]=0x00;
+  gpstbuf[13]=0x00;
+  gpstbuf[14]=0x01;
+  gpstbuf[15]=0x00;
+  gpstbuf[16]=0x00;
+  gpstbuf[17]=0x00;
+  gpstbuf[18]=0x01;
+  gpstbuf[19]=0x00;
+  gpstbuf[20]=0x00;
+  gpstbuf[21]=0x00;
+  gpstbuf[22]=0x00;
+  gpstbuf[23]=0x00;
+  gpstbuf[24]=0x00;
+  gpstbuf[25]=0x80;
+  gpstbuf[26]=0x99;
+  gpstbuf[27]=0x99;
+  gpstbuf[28]=0x99;
+  gpstbuf[29]=0x19;
+  gpstbuf[30]=0x00;
+  gpstbuf[31]=0x00;
+  gpstbuf[32]=0x00;
+  gpstbuf[33]=0x00;
+  gpstbuf[34]=0x6F;
+  gpstbuf[35]=0x00;
+  gpstbuf[36]=0x00;
+  gpstbuf[37]=0x00;
+  gpstbuf[38]=0x2D;
+  gpstbuf[39]=0xEC;
+  Gps_senddata(gpstbuf,40);
+  dm1();
+
+  UC1IE &= ~UCA1TXIE;
+}
+
+
+unsigned char Gps_senddata(char sbuf[],unsigned char slen)
+{
+  
+  for(counter_tx=0;counter_tx<slen;counter_tx++)
+  {
+    while (!(UC1IFG&UCA1TXIFG));  
+    UCA1TXBUF=sbuf[counter_tx];   
+  }
+   return 0;
 }
 
 void ReadConfig()
@@ -227,28 +413,31 @@ void ReturnGPSInfo()
   senddata(ATMSG,strlen(ATMSG));
   while(IsHaveCommand!=D_INPUT) _NOP();//等待响应指令 
   _NOP();
-  
   for(i=7,j=9;i<13;i+=2,j++)
   {
-  ATMSG[j]=(gpsrbuf[i]-0x30)*10 + gpsrbuf[i+1]-0x30;
+  ATMSG[j]=(gpsrbuf[i]-0x30)*10+gpsrbuf[i+1]-0x30;
   }
-  
-   ATMSG[0]=0xA5;
-   ATMSG[1]=0xA5;    
-   ATMSG[2]=0x24;
-   ATMSG[3]=cd1.ID[0];
-   ATMSG[4]=cd1.ID[1];
-   ATMSG[5]=cd1.ID[2];
-   ATMSG[6]=cd1.ID[3];
-   ATMSG[7]=0x00;
-   ATMSG[8]=0x03;
-   ATMSG[9]+=8;
-   ATMSG[12]=0xFF;
-   ATMSG[13]=0x5A; 
-   ATMSG[14]=0x5A;
-   senddata(ATMSG,15);
+  ATMSG[9]+=8;
+  if(ATMSG[9]>23)
+     ATMSG[9]-=24;   
+  ATMSG[9]=i/10;
+  ATMSG[10]=i%10;
+  ATMSG[0]=0xA5;
+  ATMSG[1]=0xA5;    
+  ATMSG[2]=0x24;
+  ATMSG[3]=cd1.ID[0];
+  ATMSG[4]=cd1.ID[1];
+  ATMSG[5]=cd1.ID[2];
+  ATMSG[6]=cd1.ID[3];
+  ATMSG[7]=0x0;
+  ATMSG[8]=0x03;
+  ATMSG[12]=0xFF;
+  ATMSG[13]=0x5A;
+  ATMSG[14]=0x5A;     
+  senddata(ATMSG,15);    
   while(IsHaveCommand!=C_OK) _NOP();//等待响应指令     
 }
+
 
 
 unsigned char senddata(char sbuf[],unsigned char slen)

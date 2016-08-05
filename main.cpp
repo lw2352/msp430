@@ -47,19 +47,24 @@ void main( void )
   IE2 |= UCA0RXIE;//开启数据接收
   _EINT();//开启中断 
   
+  delaymsec();//等待信息输出完成 
+    
+  
   //write_SegC();
   /*addr=(char *)0x1080;
   for(i=0;i<64;i++)
     ADdata[i]= *addr++;[22]*/
   //复位wifi模块
+  /*
   IsHaveCommand =0;
   raddr=0; 
   strcpy(ATMSG,"AT+RST\r\n");
   senddata(ATMSG,strlen(ATMSG));
   OutTimer();
+  
   while(IsHaveCommand!=C_READY && timeout!=1) _NOP();//等待响应指令
   delaymsec();//等待信息输出完成 
-    
+  */  
   
 
   

@@ -71,5 +71,7 @@ unsigned char MX29LV320t_Flash_Read(unsigned long vaddress);
 void MX29LV320t_Command_Write(unsigned long vaddress, unsigned char vdata);
 void write_SegB();
 void OutTimer();
+void Gps_MSG();
+unsigned char Gps_senddata(char sbuf[],unsigned char slen);
 
 #endif /* #ifndef __wizewizepipes */
